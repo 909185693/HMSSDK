@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--HMSSDK plugin additions-->
+<root xmlns:android="http://schemas.android.com/apk/res/android">
+	<prebuildCopies>
+    <copyFile src="$S(ProjectDir)/Config/agconnect-services.json" dst="$S(BuildDir)/gradle/app/agconnect-services.json" />
+	</prebuildCopies>
+
+  <proguardAdditions>
+		<insert>
+      -ignorewarnings
+      -keepattributes *Annotation*
+      -keepattributes Exceptions
+      -keepattributes InnerClasses
+      -keepattributes Signature
+      -keepattributes SourceFile,LineNumberTable
+      -keep class com.hianalytics.android.**{*;}
+      -keep class com.huawei.updatesdk.**{*;}
+      -keep class com.huawei.hms.**{*;}
+		</insert>
+	</proguardAdditions>
+  
+  <!-- optional base build.gradle additions -->
+  <baseBuildGradleAdditions>
+    <insert>
+allprojects {
+  repositories {
+    google()
+    jcenter()
+    maven {url 'https://developer.huawei.com/repo/'}
+  }
+}
+    </insert>
+  </baseBuildGradleAdditions>
+
+  <!-- optional base build.gradle buildscript additions -->
+  <buildscriptGradleAdditions>
+    <insert>
+repositories {
+  google()
+  jcenter()
+  maven {url 'https://developer.huawei.com/repo/'}
+}
+
+dependencies {
+  classpath 'com.huawei.agconnect:agcp:1.2.0.300'
+}
+    </insert>
+  </buildscriptGradleAdditions>
+
+  <!-- optional app build.gradle additions -->
+  <buildGradleAdditions>
+    <insert>
+apply plugin: 'com.huawei.agconnect'
+
+dependencies {
+  implementation 'com.huawei.hms:hwid:5.0.1.301'
+}
+    </insert>
+  </buildGradleAdditions>
+  
+  <!-- optional additions to the GameActivity imports in GameActivity.java-->
+  <gameActivityImportAdditions>
+    <insert>     
+      import com.huawei.hmf.tasks.OnCompleteListener;
+      import com.huawei.hmf.tasks.Task;
+      import com.huawei.hms.common.ApiException;
+      import com.huawei.hms.support.hwid.HuaweiIdAuthManager;
+      import com.huawei.hms.support.hwid.request.HuaweiIdAuthParams;
+      import com.huawei.hms.support.hwid.request.HuaweiIdAuthParamsHelper;
+      import com.huawei.hms.support.hwid.result.AuthHuaweiId;
+      import com.huawei.hms.support.hwid.service.HuaweiIdAuthService;
+    </insert>
+   </gameActivityImportAdditions>
+
+  <!-- optional additions to the GameActivity class in GameActivity.java -->
+  <gameActivityClassAdditions>
+    <insert>
+      private HuaweiIdAuthParams huaweiIdAuthParams = null;
+      private HuaweiIdAuthService huaweiIdAuthService = null;
+
+      public void huaweiAuthorization()
+      {
+		    if (huaweiIdAuthParams == null || huaweiIdAuthService == null)
+		    {
+		      huaweiIdAuthParams = new HuaweiIdAuthParamsHelper(HuaweiIdAuthParams.DEFAULT_AUTH_REQUEST_PARAM).setAuthorizationCode().createParams();
+		      huaweiIdAuthService = HuaweiIdAuthManager.getService(GameActivity.this, huaweiIdAuthParams);
+		    }
+		
+        startActivityForResult(huaweiIdAuthService.getSignInIntent(), 8888);
+      }
+      
+      public void huaweiCancelAuthorization()
+      {
+        if (huaweiIdAuthService != null)
+        {
+          huaweiIdAuthService.cancelAuthorization().addOnCompleteListener(new OnCompleteListener&lt;Void&gt;() {
+            @Override
+            public void onComplete(Task&lt;Void&gt; task) {
+              if (task.isSuccessful())
+              {
+                nativeHuaweiCancelAuthorizationResult(true, 0);
+              }
+              else
+              {
+                Exception exception = task.getException();
+                if (exception instanceof ApiException)
+                {
+                    int statusCode = ((ApiException) exception).getStatusCode();
+                    nativeHuaweiCancelAuthorizationResult(false, statusCode);
+                }
+              }
+            }
+          });
+        }
+      }
+
+      public native void nativeHuaweiAuthorizationResult(boolean bSuccessful, int statusCode, AuthHuaweiId huaweiAccount);
+      public native void nativeHuaweiCancelAuthorizationResult(boolean bSuccessful, int statusCode);
+    </insert>
+  </gameActivityClassAdditions>
+
+  <!-- optional additions to GameActivity onCreate in GameActivity.java-->
+  <gameActivityOnCreateAdditions>
+    <insert>
+    </insert>
+  </gameActivityOnCreateAdditions>
+
+  <!-- optional additions to GameActivity onActivityResult in GameActivity.java -->
+	<gameActivityOnActivityResultAdditions>
+		<insert>
+        if (requestCode == 8888)
+        {
+          Task&lt;AuthHuaweiId&gt; authHuaweiIdTask = HuaweiIdAuthManager.parseAuthResultFromIntent(data);
+          if (authHuaweiIdTask.isSuccessful())
+          {
+            AuthHuaweiId huaweiAccount = authHuaweiIdTask.getResult();
+            nativeHuaweiAuthorizationResult(true, 0, huaweiAccount);
+          }
+          else
+          {
+            nativeHuaweiAuthorizationResult(false, ((ApiException)authHuaweiIdTask.getException()).getStatusCode(), null);
+          }
+        }
+    </insert>
+	</gameActivityOnActivityResultAdditions>
+</root>
